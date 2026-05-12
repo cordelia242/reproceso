@@ -5,21 +5,38 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import type { ReprocessJob } from "../../types/signing-request";
 import { getJob, saveJob } from "../../lib/reprocess-jobs";
+import { SpinnerIcon, CheckIcon, XIcon, BackArrowIcon } from "../../components/icons";
 
 function elapsedLabel(startedAt: string, completedAt?: string): string {
-  const from = new Date(startedAt).getTime();
-  const to = completedAt ? new Date(completedAt).getTime() : Date.now();
-  const secs = Math.floor((to - from) / 1000);
+  const secs = Math.floor(
+    ((completedAt ? new Date(completedAt) : new Date()).getTime() - new Date(startedAt).getTime()) / 1000
+  );
   if (secs < 60) return `${secs}s`;
   const mins = Math.floor(secs / 60);
-  const rem = secs % 60;
-  if (mins < 60) return `${mins}m ${rem}s`;
+  if (mins < 60) return `${mins}m ${secs % 60}s`;
   return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
 
+const STATUS_COLORS: Record<ReprocessJob["status"], string> = {
+  loading: "bg-blue-100 text-blue-700",
+  completed: "bg-green-100 text-green-700",
+  error: "bg-red-100 text-red-700",
+};
+
+const STATUS_LABELS: Record<ReprocessJob["status"], string> = {
+  loading: "En proceso",
+  completed: "Completado",
+  error: "Error",
+};
+
+const MANUAL_COLORS: Record<"success" | "failed", string> = {
+  success: "bg-green-100 text-green-700 border-green-300",
+  failed: "bg-red-100 text-red-700 border-red-300",
+};
+
 export default function ReprocessDetailPage() {
   const params = useParams();
-  const id = typeof params.id === "string" ? params.id : Array.isArray(params.id) ? params.id[0] : "";
+  const id = Array.isArray(params.id) ? params.id[0] : (params.id as string) ?? "";
 
   const [job, setJob] = useState<ReprocessJob | null>(null);
   const [elapsed, setElapsed] = useState("");
@@ -27,10 +44,7 @@ export default function ReprocessDetailPage() {
 
   const reload = useCallback(() => {
     const j = getJob(id);
-    if (!j) {
-      setNotFound(true);
-      return;
-    }
+    if (!j) { setNotFound(true); return; }
     setJob(j);
     setElapsed(elapsedLabel(j.startedAt, j.completedAt));
   }, [id]);
@@ -43,7 +57,7 @@ export default function ReprocessDetailPage() {
 
   function setManualResult(result: "success" | "failed" | null) {
     if (!job) return;
-    const updated: ReprocessJob = { ...job, manualResult: result };
+    const updated = { ...job, manualResult: result };
     saveJob(updated);
     setJob(updated);
   }
@@ -52,7 +66,10 @@ export default function ReprocessDetailPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="text-center space-y-3">
-          <p className="text-gray-500 text-sm">No se encontró el reproceso con ID: <code className="font-mono text-xs bg-gray-100 px-1 rounded">{id}</code></p>
+          <p className="text-gray-500 text-sm">
+            No se encontró el reproceso con ID:{" "}
+            <code className="font-mono text-xs bg-gray-100 px-1 rounded">{id}</code>
+          </p>
           <Link href="/" className="text-blue-600 text-sm hover:underline">← Volver</Link>
         </div>
       </div>
@@ -62,70 +79,33 @@ export default function ReprocessDetailPage() {
   if (!job) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <svg className="h-6 w-6 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-        </svg>
+        <SpinnerIcon className="h-6 w-6 animate-spin text-blue-500" />
       </div>
     );
   }
-
-  const statusColors: Record<ReprocessJob["status"], string> = {
-    loading: "bg-blue-100 text-blue-700",
-    completed: "bg-green-100 text-green-700",
-    error: "bg-red-100 text-red-700",
-  };
-
-  const statusLabels: Record<ReprocessJob["status"], string> = {
-    loading: "En proceso",
-    completed: "Completado",
-    error: "Error",
-  };
-
-  const manualColors = {
-    success: "bg-green-100 text-green-700 border-green-300",
-    failed: "bg-red-100 text-red-700 border-red-300",
-  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto max-w-2xl space-y-6">
         <div className="flex items-center gap-3">
           <Link href="/" className="p-1.5 rounded-lg hover:bg-gray-200 text-gray-400 transition-colors">
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
+            <BackArrowIcon className="h-4 w-4" />
           </Link>
           <h1 className="text-xl font-bold text-gray-900">Detalle de reproceso</h1>
         </div>
 
-        {/* Status banner */}
-        <div className={`flex items-center gap-3 rounded-xl px-4 py-3 ${statusColors[job.status]}`}>
-          {job.status === "loading" && (
-            <svg className="h-5 w-5 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-          )}
-          {job.status === "completed" && (
-            <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-          )}
-          {job.status === "error" && (
-            <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          )}
+        <div className={`flex items-center gap-3 rounded-xl px-4 py-3 ${STATUS_COLORS[job.status]}`}>
+          {job.status === "loading" && <SpinnerIcon className="h-5 w-5 animate-spin shrink-0" />}
+          {job.status === "completed" && <CheckIcon className="h-5 w-5 shrink-0" />}
+          {job.status === "error" && <XIcon className="h-5 w-5 shrink-0" />}
           <div>
-            <p className="font-semibold text-sm">{statusLabels[job.status]}</p>
+            <p className="font-semibold text-sm">{STATUS_LABELS[job.status]}</p>
             <p className="text-xs opacity-80">
               Tiempo transcurrido: <span className="font-mono font-bold">{elapsed}</span>
             </p>
           </div>
         </div>
 
-        {/* Job details */}
         <div className="rounded-xl border border-gray-200 bg-white shadow-sm divide-y divide-gray-100">
           <div className="px-5 py-3">
             <p className="text-xs text-gray-400 mb-0.5">Documento</p>
@@ -161,55 +141,37 @@ export default function ReprocessDetailPage() {
           </div>
         </div>
 
-        {/* API Response */}
         {job.response !== undefined && (
           <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
             <div className="px-5 py-3 bg-gray-50 border-b border-gray-200">
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                Respuesta del API
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Respuesta del API</p>
             </div>
             <div className="p-4">
               <pre className="text-xs text-gray-800 whitespace-pre-wrap break-all font-mono bg-gray-50 rounded-lg p-3 max-h-64 overflow-y-auto">
-                {typeof job.response === "string"
-                  ? job.response
-                  : JSON.stringify(job.response, null, 2)}
+                {typeof job.response === "string" ? job.response : JSON.stringify(job.response, null, 2)}
               </pre>
             </div>
           </div>
         )}
 
-        {/* Manual result */}
         <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-            Resultado manual
-          </p>
-          <p className="text-sm text-gray-600">
-            Marca el resultado manualmente si lo conoces:
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Resultado manual</p>
+          <p className="text-sm text-gray-600">Marca el resultado manualmente si lo conoces:</p>
           <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={() => setManualResult(job.manualResult === "success" ? null : "success")}
-              className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors ${
-                job.manualResult === "success"
-                  ? manualColors.success
-                  : "border-gray-200 text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              ✓ Exitoso
-            </button>
-            <button
-              type="button"
-              onClick={() => setManualResult(job.manualResult === "failed" ? null : "failed")}
-              className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors ${
-                job.manualResult === "failed"
-                  ? manualColors.failed
-                  : "border-gray-200 text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              ✗ Fallido
-            </button>
+            {(["success", "failed"] as const).map((result) => (
+              <button
+                key={result}
+                type="button"
+                onClick={() => setManualResult(job.manualResult === result ? null : result)}
+                className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors ${
+                  job.manualResult === result
+                    ? MANUAL_COLORS[result]
+                    : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                {result === "success" ? "✓ Exitoso" : "✗ Fallido"}
+              </button>
+            ))}
           </div>
           {job.manualResult && (
             <p className="text-xs text-gray-400">

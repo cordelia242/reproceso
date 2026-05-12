@@ -18,10 +18,11 @@ interface State {
   cellJobsMap: Record<string, CellJobs>;       // directoryId → CellJobs
   selectionsMap: Record<string, SelectionsRecord>; // directoryId → SelectionsRecord
   expandedMap: Record<string, boolean>;         // directoryId → expanded
+  rawJsonMap: Record<string, string>;           // directoryId → original pasted JSON
 }
 
 interface ContextValue extends State {
-  addRequest: (req: SigningRequest) => void;
+  addRequest: (req: SigningRequest, rawJson: string) => void;
   removeRequest: (index: number) => void;
   clearAll: () => void;
   setCellJobs: (directoryId: string, jobs: CellJobs) => void;
@@ -31,7 +32,7 @@ interface ContextValue extends State {
 
 const STORAGE_KEY = "signing_requests_state";
 
-const EMPTY: State = { requests: [], cellJobsMap: {}, selectionsMap: {}, expandedMap: {} };
+const EMPTY: State = { requests: [], cellJobsMap: {}, selectionsMap: {}, expandedMap: {}, rawJsonMap: {} };
 
 function loadState(): State {
   if (typeof window === "undefined") return EMPTY;
@@ -44,6 +45,7 @@ function loadState(): State {
       cellJobsMap: parsed.cellJobsMap ?? {},
       selectionsMap: parsed.selectionsMap ?? {},
       expandedMap: parsed.expandedMap ?? {},
+      rawJsonMap: parsed.rawJsonMap ?? {},
     };
   } catch {
     return EMPTY;
@@ -59,8 +61,12 @@ export function SigningRequestsProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
-  function addRequest(req: SigningRequest) {
-    setState((prev) => ({ ...prev, requests: [...prev.requests, req] }));
+  function addRequest(req: SigningRequest, rawJson: string) {
+    setState((prev) => ({
+      ...prev,
+      requests: [...prev.requests, req],
+      rawJsonMap: { ...prev.rawJsonMap, [req.DocumentDirectoryId]: rawJson },
+    }));
   }
 
   function removeRequest(index: number) {

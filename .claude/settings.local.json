@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(Get-Content -Path 'C:\\\\Users\\\\JAVARG~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Projects-bsol-firmador\\\\46f66129-17a0-4b7c-a82b-ca37691fa017\\\\tasks\\\\b314a8uqi.output' -Wait -Tail 0)",
+      "Bash(git -C \"C:\\\\Projects\\\\bsol-firmador\" diff 873582e..7c1d613 --stat)",
+      "Bash(git -C \"C:\\\\Projects\\\\bsol-firmador\" diff 873582e..7c1d613 -- app/components/documents-table.tsx)",
+      "Bash(git -C C:\\\\Projects\\\\bsol-firmador diff c98a663..ae26676 --stat)"
     ]
   }
 }
