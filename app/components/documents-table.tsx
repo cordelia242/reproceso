@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { SigningDocument, ReprocessJob } from "../types/signing-request";
 import { saveJob, getJob } from "../lib/reprocess-jobs";
 import { useSigningRequests } from "../context/signing-requests";
@@ -13,12 +14,12 @@ type CellJobs = Record<string, string>; // `${documentId}::${signingRepresentati
 const cellKey = (docId: string, type: number) => `${docId}::${type}`;
 
 export function DocumentsTable({ docs, directoryId }: { docs: SigningDocument[]; directoryId: string }) {
+  const router = useRouter();
   const { cellJobsMap, setCellJobs: setGlobalCellJobs } = useSigningRequests();
 
   const sortedTypes = [
     ...new Set(docs.flatMap((doc) => doc.SingSetting.Signatories.map((s) => s.SigningRepresentative))),
   ].sort((a, b) => a - b);
-
 
   const cellJobs: CellJobs = cellJobsMap[directoryId] ?? {};
   const cellJobsRef = useRef(cellJobs);
@@ -48,7 +49,69 @@ export function DocumentsTable({ docs, directoryId }: { docs: SigningDocument[];
     return () => clearInterval(interval);
   }, []);
 
+  async function reprocessCell(doc: SigningDocument, sig: SigningDocument["SingSetting"]["Signatories"][number]) {
+    const key = cellKey(doc.DocumentId, sig.SigningRepresentative);
+    const existingJobId = cellJobs[key];
 
+    // Block double calls while loading
+    if (existingJobId) {
+      const existing = jobStates[existingJobId];
+      if (!existing || existing.status === "loading") return;
+    }
+
+    const docName = DOCUMENT_NAMES[doc.DocumentType] || doc.TopicName || `Tipo ${doc.DocumentType}`;
+    const now = new Date().toISOString();
+    const jobId = crypto.randomUUID();
+
+    saveJob({
+      id: jobId,
+      documentId: doc.DocumentId,
+      documentName: docName,
+      signingRepresentative: sig.SigningRepresentative,
+      participantLabel: PARTICIPANT_LABELS[sig.SigningRepresentative] ?? `Tipo ${sig.SigningRepresentative}`,
+      interviewId: sig.InterviewId,
+      directoryId,
+      startedAt: now,
+      status: "loading",
+    });
+
+    setGlobalCellJobs(directoryId, { ...cellJobs, [key]: jobId });
+
+    const baseJob = {
+      id: jobId,
+      documentId: doc.DocumentId,
+      documentName: docName,
+      signingRepresentative: sig.SigningRepresentative,
+      participantLabel: PARTICIPANT_LABELS[sig.SigningRepresentative] ?? `Tipo ${sig.SigningRepresentative}`,
+      interviewId: sig.InterviewId,
+      directoryId,
+      startedAt: now,
+    };
+
+    try {
+      const res = await fetch(`${API_BASE}/${doc.DocumentId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          InterviewId: sig.InterviewId,
+          DirectoryId: directoryId,
+          FlowType: 0,
+          SigningRepresentative: sig.SigningRepresentative,
+        }),
+      });
+      const text = await res.text();
+      let response: unknown;
+      try { response = JSON.parse(text); } catch { response = text; }
+      saveJob({ ...baseJob, status: res.ok ? "completed" : "error", response, completedAt: new Date().toISOString() });
+    } catch (err) {
+      saveJob({
+        ...baseJob,
+        status: "error",
+        response: err instanceof Error ? err.message : String(err),
+        completedAt: new Date().toISOString(),
+      });
+    }
+  }
 
   return (
     <div className="overflow-x-auto rounded-lg border border-gray-200">
