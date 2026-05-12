@@ -51,7 +51,7 @@ export function DocumentsTable({ docs, directoryId }: { docs: SigningDocument[];
 
   async function reprocessCell(doc: SigningDocument, sig: SigningDocument["SingSetting"]["Signatories"][number]) {
     const key = cellKey(doc.DocumentId, sig.SigningRepresentative);
-    const existingJobId = cellJobs[key];
+    const existingJobId = cellJobsRef.current[key];
 
     // Block double calls while loading
     if (existingJobId) {
@@ -59,7 +59,7 @@ export function DocumentsTable({ docs, directoryId }: { docs: SigningDocument[];
       if (!existing || existing.status === "loading") return;
     }
 
-    const docName = DOCUMENT_NAMES[doc.DocumentType] || doc.TopicName || `Tipo ${doc.DocumentType}`;
+    const docName = DOCUMENT_NAMES[String(doc.DocumentType)] || doc.TopicName || `Tipo ${doc.DocumentType}`;
     const now = new Date().toISOString();
     const jobId = crypto.randomUUID();
 
@@ -75,7 +75,7 @@ export function DocumentsTable({ docs, directoryId }: { docs: SigningDocument[];
       status: "loading",
     });
 
-    setGlobalCellJobs(directoryId, { ...cellJobs, [key]: jobId });
+    setGlobalCellJobs(directoryId, { ...cellJobsRef.current, [key]: jobId });
 
     const baseJob = {
       id: jobId,
